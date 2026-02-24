@@ -1,19 +1,25 @@
 {
+  "id": "/",
   "short_name": "SkillBridge",
   "name": "SkillBridge Platform",
+  "description": "Студенческая биржа",
   "icons": [
     {
-      "src": "logo.jpeg",
-      "type": "image/jpeg",
-      "sizes": "192x192"
-    },
-    {
-      "src": "logo.jpeg",
-      "type": "image/jpeg",
-      "sizes": "512x512"
+      "src": "logo.png",
+      "type": "image/png",
+      "sizes": "1024x1024",
+      "purpose": "any"
     }
   ],
-  "start_url": ".",
+  "screenshots": [
+    {
+      "src": "logo.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "form_factor": "wide"
+    }
+  ],
+  "start_url": "/",
   "display": "standalone",
   "theme_color": "#0b0e14",
   "background_color": "#0b0e14"
