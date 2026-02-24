@@ -1,0 +1,26 @@
+@import "tailwindcss";
+
+@theme {
+  --color-dark-bg: #0B0E14;
+  --color-brand-purple: #9333ea;
+  --color-brand-blue: #3b82f6;
+  --radius-card: 32px;
+}
+
+:root {
+  background-color: #0B0E14;
+  color: white;
+  font-family: sans-serif;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+.glass-effect {
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}

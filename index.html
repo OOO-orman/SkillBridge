@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0, viewport-fit=cover" />
+    
+    <meta name="theme-color" content="#0b0e14" />
+    
+    <meta name="mobile-web-app-capable" content="yes" />
+    
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="SkillBridge" />
+    
+    <link rel="manifest" href="/manifest.json" />
+    
+    <title>SkillBridge - Студенческая Биржа</title>
+    
+    <style>
+      /* Базовый стиль, чтобы страница сразу была темной */
+      body { 
+        background-color: #0b0e14; 
+        margin: 0; 
+        overflow-x: hidden;
+        /* Убирает системные выделения при нажатии на кнопки в Safari */
+        -webkit-tap-highlight-color: transparent;
+      }
+      #root {
+        min-height: 100vh;
+      }
+      /* Фикс для iOS: контент не будет залезать под челку, если использовать эти переменные в CSS */
+      :root {
+        --safe-area-inset-top: env(safe-area-inset-top);
+        --safe-area-inset-bottom: env(safe-area-inset-bottom);
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
