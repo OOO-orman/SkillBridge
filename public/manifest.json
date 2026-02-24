@@ -9,6 +9,12 @@
       "type": "image/png",
       "sizes": "1024x1024",
       "purpose": "any"
+    },
+    {
+      "src": "logo.png",
+      "type": "image/png",
+      "sizes": "1024x1024",
+      "purpose": "maskable"
     }
   ],
   "screenshots": [
@@ -16,7 +22,15 @@
       "src": "logo.png",
       "sizes": "1024x1024",
       "type": "image/png",
-      "form_factor": "wide"
+      "form_factor": "wide",
+      "label": "Версия для ПК"
+    },
+    {
+      "src": "logo.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Мобильная версия"
     }
   ],
   "start_url": "/",
