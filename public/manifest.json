@@ -3,9 +3,9 @@
   "name": "SkillBridge Platform",
   "icons": [
     {
-      "src": "vite.svg",
-      "type": "image/svg+xml",
-      "sizes": "any"
+      "src": "logo.jpg", 
+      "type": "image/jpeg",
+      "sizes": "512x512"
     }
   ],
   "start_url": ".",
