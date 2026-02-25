@@ -163,6 +163,19 @@ const App = () => {
     } catch (e) { console.error(e); }
     setIsSubmitting(false);
   };
+  const deleteJob = async (job) => {
+    if (job.status !== 'open') {
+      alert("Нельзя удалить проект, который уже выполняется. Обратитесь в арбитраж.");
+      return;
+    }
+    if (!window.confirm("Вы уверены? Бюджет проекта вернется на ваш баланс.")) return;
+
+    try {
+      await updateDoc(doc(db, "users", user.uid), { balance: increment(job.budget) });
+      await deleteDoc(doc(db, "jobs", job.id));
+      setSelectedJob(null);
+    } catch (e) { console.error(e); }
+  };
 
   const updateProfile = async () => {
     if (isSubmitting) return;
@@ -618,13 +631,35 @@ const App = () => {
                  <p className="text-slate-400 text-sm leading-relaxed whitespace-pre-wrap">{selectedJob.desc}</p>
               </div>
               {userData?.role === 'student' ? (
-  <button 
-    disabled={isSubmitting || myApplications.includes(selectedJob.id)} 
-    onClick={() => handleApply(selectedJob)} 
-    className={`w-full py-6 rounded-[28px] text-[10px] font-black uppercase tracking-[0.3em] transition-all flex items-center justify-center gap-3 ${myApplications.includes(selectedJob.id) ? 'bg-slate-800 text-slate-500 cursor-not-allowed' : 'bg-purple-600 text-white active:scale-95 shadow-xl shadow-purple-600/20'}`}
-  >
-     {isSubmitting ? <Loader2 className="animate-spin" size={18}/> : myApplications.includes(selectedJob.id) ? 'Отклик отправлен' : 'Взять проект в работу'}
-  </button>
+  <div className="space-y-3">
+  {/* Кнопка для СТУДЕНТА */}
+  {userData?.role === 'student' && (
+    <button 
+      disabled={isSubmitting || myApplications.includes(selectedJob.id)} 
+      onClick={() => handleApply(selectedJob)} 
+      className={`w-full py-6 rounded-[28px] text-[10px] font-black uppercase tracking-[0.3em] transition-all flex items-center justify-center gap-3 ${myApplications.includes(selectedJob.id) ? 'bg-slate-800 text-slate-500 cursor-not-allowed' : 'bg-purple-600 text-white active:scale-95 shadow-xl shadow-purple-600/20'}`}
+    >
+       {isSubmitting ? <Loader2 className="animate-spin" size={18}/> : myApplications.includes(selectedJob.id) ? 'Отклик отправлен' : 'Взять проект в работу'}
+    </button>
+  )}
+
+  {/* Кнопка для КОМПАНИИ-ВЛАДЕЛЬЦА */}
+  {userData?.role === 'company' && selectedJob.companyId === user.uid && (
+    <button 
+      onClick={() => deleteJob(selectedJob)}
+      className="w-full py-6 bg-red-600/10 border border-red-500/20 rounded-[28px] text-[10px] font-black uppercase text-red-500 hover:bg-red-600 hover:text-white transition-all flex items-center justify-center gap-2"
+    >
+      <Trash2 size={16}/> {selectedJob.status === 'open' ? 'Удалить и вернуть деньги' : 'В работе (удаление через спор)'}
+    </button>
+  )}
+
+  {/* Если зашла ЧУЖАЯ компания */}
+  {userData?.role === 'company' && selectedJob.companyId !== user.uid && (
+    <div className="w-full py-6 bg-white/5 border border-white/5 rounded-[28px] text-[10px] font-black uppercase text-slate-500 text-center italic tracking-widest">
+      Просмотр только для студентов
+    </div>
+  )}
+</div>
 ) : (
   <div className="w-full py-6 bg-white/5 border border-white/5 rounded-[28px] text-[10px] font-black uppercase text-slate-500 text-center italic tracking-widest">
     Только для студентов
