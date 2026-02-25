@@ -17,7 +17,7 @@ import AuthPage from './AuthPage';
 
 const App = () => {
   const { user, userData } = useAuth();
-  const getChatId = (id1, id2, jobId) => [id1, id2].sort().join('_') + '_' + jobId;
+  
   
   // -- СОСТОЯНИЯ (ВОССТАНОВЛЕНО ПОЛНОСТЬЮ) --
   const [tab, setTab] = useState('home');
