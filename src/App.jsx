@@ -52,7 +52,46 @@ const App = () => {
   const [userReviews, setUserReviews] = useState([]);
   const [myApplications, setMyApplications] = useState([]);
   const [loading, setLoading] = useState(true);
-
+  useEffect(() => {
+    const tg = window.Telegram?.WebApp;
+    if (tg) {
+      tg.ready();
+      tg.expand();
+      tg.headerColor = '#0b0e14';
+      tg.backgroundColor = '#0b0e14';
+      
+      const tgUser = tg.initDataUnsafe?.user;
+      
+      // Если юзер авторизован на сайте и зашел через ТГ — привязываем ID
+      if (user && tgUser && !userData?.tgChatId) {
+        updateDoc(doc(db, "users", user.uid), {
+          tgChatId: tgUser.id.toString(),
+          tgUsername: tgUser.username || ''
+        }).catch(err => console.error("Ошибка привязки ТГ:", err));
+      }
+    }
+  }, [user, userData]); // Добавили зависимости, чтобы сработало при загрузке юзера\
+  // Функция для отправки уведомлений в Telegram
+  const sendBotNotification = async (targetUserId, message) => {
+    try {
+      const targetSnap = await getDoc(doc(db, "users", targetUserId));
+      if (targetSnap.exists()) {
+        const targetData = targetSnap.data();
+        if (targetData.tgChatId) {
+          const botToken = "8655328645:AAEyoGQxznyvhJRFwBlWSVqRjLxQfZ31ZOE";
+          await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              chat_id: targetData.tgChatId,
+              text: message,
+              parse_mode: 'HTML'
+            })
+          });
+        }
+      }
+    } catch (e) { console.error("Ошибка ТГ:", e); }
+  };
   const categories = [
     { id: 'Все', icon: <LayoutGrid size={16}/> },
     { id: 'Код', icon: <Code size={16}/> },
@@ -144,8 +183,10 @@ const App = () => {
         companyId: job.companyId, companyName: job.company, budget: job.budget,
         status: 'Ожидание', createdAt: serverTimestamp(),
       });
+      sendBotNotification(job.companyId, `👋 <b>Новый отклик!</b>\nСтудент хочет выполнить ваш заказ: "${job.title}"`);
       setSelectedJob(null);
-    } catch (e) { console.error(e); }
+    }
+     catch (e) { console.error(e); }
     setIsSubmitting(false);
   }; // <--- ВОТ ЭТА СКОБКА ДОЛЖНА ЗАКРЫВАТЬ handleApply
 
@@ -227,6 +268,7 @@ const App = () => {
     });
     await updateDoc(jobRef, { status: 'Завершено', frozenBudget: 0 });
     await updateDoc(doc(db, "applications", app.id), { status: 'Завершено' });
+    sendBotNotification(app.userId, `💰 <b>Оплата получена!</b>\nЗаказчик принял вашу работу "${app.jobTitle}".\nНачислено: ₸${amount.toLocaleString()} и +500 XP!`);
     setReviewModal(null); setReviewText('');
     setIsSubmitting(false);
   };
