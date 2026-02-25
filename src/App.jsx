@@ -114,20 +114,38 @@ const App = () => {
 
   // === ИСПРАВЛЕНИЕ БАГА ЧАТА: Отправка сообщения ===
   const sendMessage = async (e) => {
-    e.preventDefault();
-    if (!newMessage.trim() || !chatUser?.chatId) return;
-    try {
-      await addDoc(collection(db, "chats", chatUser.chatId, "messages"), {
-        text: newMessage,
-        senderId: user.uid,
-        senderName: userData.name || 'Пользователь',
-        createdAt: serverTimestamp(),
-      });
-      setNewMessage('');
-    } catch (err) {
-      console.error("Error sending:", err);
-    }
-  };
+  e.preventDefault();
+  
+  // 1. Проверяем в консоли, что происходит при нажатии
+  console.log("Нажата кнопка отправить. Данные:", {
+    text: newMessage,
+    chatId: chatUser?.chatId,
+    userId: user?.uid
+  });
+
+  if (!newMessage.trim()) return;
+
+  if (!chatUser?.chatId) {
+    alert("Критическая ошибка: ID чата не определен! Попробуйте закрыть чат и открыть его снова из меню 'Заказы'.");
+    return;
+  }
+
+  try {
+    const chatRef = collection(db, "chats", chatUser.chatId, "messages");
+    await addDoc(chatRef, {
+      text: newMessage,
+      senderId: user.uid,
+      senderName: userData.name || 'Пользователь',
+      createdAt: serverTimestamp(),
+    });
+    
+    console.log("Firebase подтвердил получение сообщения!");
+    setNewMessage('');
+  } catch (err) {
+    console.error("ОШИБКА FIREBASE:", err);
+    alert("Сообщение не отправлено: " + err.message);
+  }
+};
 
   const updateAppStatus = async (appId, newStatus) => {
     await updateDoc(doc(db, "applications", appId), { status: newStatus });
