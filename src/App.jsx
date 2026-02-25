@@ -163,19 +163,7 @@ const App = () => {
     } catch (e) { console.error(e); }
     setIsSubmitting(false);
   };
-  const deleteJob = async (job) => {
-    if (job.status !== 'open') {
-      alert("Нельзя удалить проект, который уже выполняется. Обратитесь в арбитраж.");
-      return;
-    }
-    if (!window.confirm("Вы уверены? Бюджет проекта вернется на ваш баланс.")) return;
-
-    try {
-      await updateDoc(doc(db, "users", user.uid), { balance: increment(job.budget) });
-      await deleteDoc(doc(db, "jobs", job.id));
-      setSelectedJob(null);
-    } catch (e) { console.error(e); }
-  };
+  
 
   const updateProfile = async () => {
     if (isSubmitting) return;
@@ -616,60 +604,60 @@ const App = () => {
 
       {/* --- МОДАЛЬНЫЕ ОКНА --- */}
 
-      {/* Просмотр проекта */}
+     {/* Просмотр проекта */}
       {selectedJob && (
         <div className="fixed inset-0 z-[200] flex items-end justify-center px-4 pb-10 animate-in fade-in duration-300 text-left">
            <div className="absolute inset-0 bg-[#0b0e14]/90 backdrop-blur-md" onClick={() => setSelectedJob(null)}></div>
            <div className="relative w-full max-w-md bg-[#1c222d] rounded-[45px] p-10 border border-white/10 shadow-2xl animate-in slide-in-from-bottom duration-500">
               <div className="w-16 h-1.5 bg-white/10 rounded-full mx-auto mb-8"></div>
+              
               <div className="flex justify-between items-start mb-6">
                  <span className="px-4 py-1.5 bg-purple-600/20 text-purple-400 rounded-full text-[10px] font-black uppercase border border-purple-500/20 tracking-widest">{selectedJob.category}</span>
                  <p className="text-emerald-400 text-2xl font-black italic tabular-nums">{selectedJob.budget?.toLocaleString()} ₸</p>
               </div>
+
               <h2 className="text-2xl font-black text-white mb-4 leading-tight uppercase italic">{selectedJob.title}</h2>
+              
               <div className="max-h-60 overflow-y-auto mb-10 custom-scrollbar pr-2">
                  <p className="text-slate-400 text-sm leading-relaxed whitespace-pre-wrap">{selectedJob.desc}</p>
               </div>
-              {userData?.role === 'student' ? (
-  <div className="space-y-3">
-  {/* Кнопка для СТУДЕНТА */}
-  {userData?.role === 'student' && (
-    <button 
-      disabled={isSubmitting || myApplications.includes(selectedJob.id)} 
-      onClick={() => handleApply(selectedJob)} 
-      className={`w-full py-6 rounded-[28px] text-[10px] font-black uppercase tracking-[0.3em] transition-all flex items-center justify-center gap-3 ${myApplications.includes(selectedJob.id) ? 'bg-slate-800 text-slate-500 cursor-not-allowed' : 'bg-purple-600 text-white active:scale-95 shadow-xl shadow-purple-600/20'}`}
-    >
-       {isSubmitting ? <Loader2 className="animate-spin" size={18}/> : myApplications.includes(selectedJob.id) ? 'Отклик отправлен' : 'Взять проект в работу'}
-    </button>
-  )}
 
-  {/* Кнопка для КОМПАНИИ-ВЛАДЕЛЬЦА */}
-  {userData?.role === 'company' && selectedJob.companyId === user.uid && (
-    <button 
-      onClick={() => deleteJob(selectedJob)}
-      className="w-full py-6 bg-red-600/10 border border-red-500/20 rounded-[28px] text-[10px] font-black uppercase text-red-500 hover:bg-red-600 hover:text-white transition-all flex items-center justify-center gap-2"
-    >
-      <Trash2 size={16}/> {selectedJob.status === 'open' ? 'Удалить и вернуть деньги' : 'В работе (удаление через спор)'}
-    </button>
-  )}
+              {/* БЛОК ДЕЙСТВИЙ */}
+              <div className="space-y-3">
+                {/* 1. Кнопка для СТУДЕНТА */}
+                {userData?.role === 'student' && (
+                  <button 
+                    disabled={isSubmitting || myApplications.includes(selectedJob.id)} 
+                    onClick={() => handleApply(selectedJob)} 
+                    className={`w-full py-6 rounded-[28px] text-[10px] font-black uppercase tracking-[0.3em] transition-all flex items-center justify-center gap-3 ${myApplications.includes(selectedJob.id) ? 'bg-slate-800 text-slate-500 cursor-not-allowed' : 'bg-purple-600 text-white active:scale-95 shadow-xl shadow-purple-600/20'}`}
+                  >
+                     {isSubmitting ? <Loader2 className="animate-spin" size={18}/> : myApplications.includes(selectedJob.id) ? 'Отклик отправлен' : 'Взять проект в работу'}
+                  </button>
+                )}
 
-  {/* Если зашла ЧУЖАЯ компания */}
-  {userData?.role === 'company' && selectedJob.companyId !== user.uid && (
-    <div className="w-full py-6 bg-white/5 border border-white/5 rounded-[28px] text-[10px] font-black uppercase text-slate-500 text-center italic tracking-widest">
-      Просмотр только для студентов
-    </div>
-  )}
-</div>
-) : (
-  <div className="w-full py-6 bg-white/5 border border-white/5 rounded-[28px] text-[10px] font-black uppercase text-slate-500 text-center italic tracking-widest">
-    Только для студентов
-  </div>
-)}
+                {/* 2. Кнопка для ВЛАДЕЛЕЦА (КОМПАНИИ) */}
+                {selectedJob.companyId === user.uid && (
+                  <button 
+                    onClick={() => deleteJob(selectedJob)}
+                    className="w-full py-6 bg-red-600/10 border border-red-500/20 rounded-[28px] text-[10px] font-black uppercase text-red-500 hover:bg-red-600 hover:text-white transition-all flex items-center justify-center gap-2 shadow-lg"
+                  >
+                    <Trash2 size={16}/> {selectedJob.status === 'open' ? 'Удалить и вернуть деньги' : 'В работе (удаление запрещено)'}
+                  </button>
+                )}
+
+                {/* 3. Для ЧУЖОЙ компании (не владельца) */}
+                {userData?.role === 'company' && selectedJob.companyId !== user.uid && (
+                  <div className="w-full py-6 bg-white/5 border border-white/5 rounded-[28px] text-[10px] font-black uppercase text-slate-500 text-center italic tracking-widest">
+                    Просмотр только для студентов
+                  </div>
+                )}
+              </div>
+              {/* КОНЕЦ БЛОКА ДЕЙСТВИЙ */}
+
            </div>
         </div>
       )}
-
-      {/* Создание задания */}
+      {/* Создание задания*/}
       {userData.role === 'company' && tab === 'home' && (
         <button onClick={() => setShowCreateModal(true)} className="fixed bottom-28 right-8 w-16 h-16 bg-purple-600 rounded-[24px] flex items-center justify-center text-white shadow-2xl z-50 active:scale-90 transition-all border-4 border-[#0b0e14] hover:bg-purple-500 shadow-purple-600/40">
           <Plus size={32}/>
