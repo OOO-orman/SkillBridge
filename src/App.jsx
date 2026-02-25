@@ -276,22 +276,67 @@ if (!data.ok) {
   const submitReview = async () => {
     if (isSubmitting) return;
     setIsSubmitting(true);
-    const app = reviewModal;
-    const jobRef = doc(db, "jobs", app.jobId);
-    const jobSnap = await getDoc(jobRef);
-    const amount = jobSnap.data()?.frozenBudget || 0;
-    await updateDoc(doc(db, "users", app.userId), {
-      balance: increment(amount), experience: increment(500), completedProjects: increment(1),
-      totalRating: increment(rating), reviewCount: increment(1)
-    });
-    await addDoc(collection(db, "reviews"), {
-      toId: app.userId, fromId: user.uid, fromName: userData.name, rating, text: reviewText, jobTitle: app.jobTitle, createdAt: serverTimestamp()
-    });
-    await updateDoc(jobRef, { status: 'Завершено', frozenBudget: 0 });
-    await updateDoc(doc(db, "applications", app.id), { status: 'Завершено' });
-    sendBotNotification(app.userId, `💰 <b>Оплата получена!</b>\nЗаказчик принял вашу работу "${app.jobTitle}".\nНачислено: ₸${amount.toLocaleString()} и +500 XP!`);
-    setReviewModal(null); setReviewText('');
-    setIsSubmitting(false);
+    
+    try {
+      const app = reviewModal;
+      const jobRef = doc(db, "jobs", app.jobId);
+      const jobSnap = await getDoc(jobRef);
+      const fullAmount = jobSnap.data()?.frozenBudget || 0;
+
+      // --- ЛОГИКА КОМИССИИ (10%) ---
+      const fee = Math.floor(fullAmount * 0.10); // Рассчитываем 10%
+      const netAmount = fullAmount - fee;       // Сумма студенту
+
+      // 1. Начисляем студенту сумму ЗА ВЫЧЕТОМ комиссии
+      await updateDoc(doc(db, "users", app.userId), {
+        balance: increment(netAmount), 
+        experience: increment(500), 
+        completedProjects: increment(1),
+        totalRating: increment(rating), 
+        reviewCount: increment(1)
+      });
+
+      // 2. Записываем комиссию в статистику платформы (для админа)
+      await addDoc(collection(db, "platform_earnings"), {
+        amount: fee,
+        jobId: app.jobId,
+        jobTitle: app.jobTitle,
+        studentId: app.userId,
+        createdAt: serverTimestamp()
+      });
+
+      // 3. Создаем отзыв
+      await addDoc(collection(db, "reviews"), {
+        toId: app.userId, 
+        fromId: user.uid, 
+        fromName: userData.name, 
+        rating, 
+        text: reviewText, 
+        jobTitle: app.jobTitle, 
+        createdAt: serverTimestamp()
+      });
+
+      // 4. Закрываем сделку
+      await updateDoc(jobRef, { status: 'Завершено', frozenBudget: 0 });
+      await updateDoc(doc(db, "applications", app.id), { status: 'Завершено' });
+
+      // 5. Уведомляем в Telegram (указываем чистую прибыль и комиссию)
+      sendBotNotification(app.userId, 
+        `💰 <b>Оплата получена!</b>\n` +
+        `Заказчик принял работу: "${app.jobTitle}"\n\n` +
+        `Вы зачислили: <b>₸${netAmount.toLocaleString()}</b>\n` +
+        `Комиссия сервиса (10%): ₸${fee.toLocaleString()}\n` +
+        `Бонус: +500 XP! 🚀`
+      );
+
+      setReviewModal(null); 
+      setReviewText('');
+    } catch (e) {
+      console.error("Ошибка при выплате:", e);
+      alert("Произошла ошибка при обработке транзакции");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const UserAvatar = ({ u, size = "w-12 h-12", rounded = "rounded-2xl" }) => (
