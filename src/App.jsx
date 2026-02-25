@@ -78,15 +78,22 @@ const App = () => {
         const targetData = targetSnap.data();
         if (targetData.tgChatId) {
           const botToken = "8655328645:AAEyoGQxznyvhJRFwBlWSVqRjLxQfZ31ZOE";
-          await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              chat_id: targetData.tgChatId,
-              text: message,
-              parse_mode: 'HTML'
-            })
-          });
+          const response = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    chat_id: targetData.tgChatId,
+    text: message,
+    parse_mode: 'HTML'
+  })
+});
+
+const data = await response.json();
+if (!data.ok) {
+  console.error("Ошибка Telegram API:", data.description);
+} else {
+  console.log("Уведомление успешно отправлено в TG!");
+}
         }
       }
     } catch (e) { console.error("Ошибка ТГ:", e); }
