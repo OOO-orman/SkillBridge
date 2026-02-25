@@ -113,21 +113,35 @@ if (!data.ok) {
   const getChatId = (u1, u2, jId) => [u1, u2, jId].sort().join('_');
 
   // -- СЛУШАТЕЛИ FIREBASE --
-  useEffect(() => {
-    if (!user || !userData) return;
-    setEditData({
-      bio: userData.bio || '',
-      github: userData.github || '',
-      avatarSeed: userData.avatarSeed || userData.name,
-      photoURL: userData.photoURL || '',
-      isAvailable: userData.isAvailable ?? true
-    });
+ useEffect(() => {
+    // 1. Если нет базового юзера (Auth), выходим сразу
+    if (!user) return;
 
+    // 2. Если данные профиля есть, обновляем стейт редактирования
+    if (userData) {
+      setEditData({
+        bio: userData.bio || '',
+        github: userData.github || '',
+        avatarSeed: userData.avatarSeed || userData.name || 'User',
+        photoURL: userData.photoURL || '',
+        isAvailable: userData.isAvailable ?? true
+      });
+    }
+
+    // 3. Слушатель заказов (ГЛАВНЫЙ для выключения лоадера)
     const unsubJobs = onSnapshot(query(collection(db, "jobs"), orderBy("createdAt", "desc")), (snap) => {
       setJobs(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      // Если userData загрузился или его нет (новый юзер), выключаем спиннер
+      setLoading(false); 
+    }, (err) => {
+      console.error("Ошибка Firebase:", err);
       setLoading(false);
     });
 
+    // Если userData еще не пришел, остальные слушатели не запускаем, чтобы не было ошибок
+    if (!userData) return () => unsubJobs();
+
+    // 4. Слушатель заявок (с защитой userData.role)
     const appsQuery = userData.role === 'company' 
       ? query(collection(db, "applications"), where("companyId", "==", user.uid))
       : query(collection(db, "applications"), where("userId", "==", user.uid));
@@ -138,6 +152,7 @@ if (!data.ok) {
       setMyApplications(appsData.map(app => app.jobId));
     });
 
+    // 5. Остальные слушатели (уведомления, топ, отзывы)
     const unsubNotifs = onSnapshot(query(collection(db, "notifications"), where("toId", "==", user.uid), orderBy("createdAt", "desc"), limit(20)), (snap) => {
       setNotifications(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });
@@ -162,7 +177,7 @@ if (!data.ok) {
       unsubJobs(); unsubApps(); unsubNotifs(); unsubTop(); unsubReviews();
       if(isAdmin) unsubDisputes?.();
     };
-  }, [user, userData, isAdmin]);
+  }, [user, userData, isAdmin]); // Добавлен userData в зависимости
 
   // --- ЖИВОЙ ЧАТ ---
   useEffect(() => {
