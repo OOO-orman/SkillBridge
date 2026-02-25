@@ -72,8 +72,7 @@ const App = () => {
         }).catch(e => console.error("Ошибка:", e));
       }
     }
-  }, [user, userData?.tgChatId]); // Следим только за наличием ID, [user, userData]); // Добавили зависимости, чтобы сработало при загрузке юзера\
-  // Функция для отправки уведомлений в Telegram
+ }, [user, userData?.tgChatId]);
   const sendBotNotification = async (targetUserId, message) => {
     try {
       const targetSnap = await getDoc(doc(db, "users", targetUserId));
