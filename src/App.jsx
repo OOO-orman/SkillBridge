@@ -130,8 +130,8 @@ const App = () => {
   }, [chatUser?.chatId]);
 
   // -- ФУНКЦИИ ЛОГИКИ --
+  // -- ФУНКЦИИ ЛОГИКИ --
   const handleApply = async (job) => {
-    // Добавляем проверку на роль: только студент может откликаться
     if (isSubmitting || myApplications.includes(job.id) || userData?.role !== 'student') {
       if (userData?.role !== 'student') alert("Только студенты могут принимать заказы!");
       return;
@@ -147,35 +147,36 @@ const App = () => {
       setSelectedJob(null);
     } catch (e) { console.error(e); }
     setIsSubmitting(false);
-    const deleteJob = async (job) => {
+  }; // <--- ВОТ ЭТА СКОБКА ДОЛЖНА ЗАКРЫВАТЬ handleApply
+
+  // ТЕПЕРЬ ОТДЕЛЬНО ИДЕТ deleteJob
+  const deleteJob = async (job) => {
     if (job.status !== 'open') {
       alert("Проект уже в работе. Удаление невозможно.");
       return;
     }
 
-    if (!window.confirm(`Вернуть ${job.budget} ₸ на ваш баланс и удалить проект?`)) return;
+    if (!window.confirm(`Удалить проект и вернуть ₸${job.budget} на баланс?`)) return;
 
     setIsSubmitting(true);
     try {
-      // 1. Возвращаем деньги на баланс (используем ID пользователя и бюджет из объекта job)
-      const userRef = doc(db, "users", user.uid);
-      await updateDoc(userRef, {
+      // 1. Возвращаем деньги на баланс компании
+      await updateDoc(doc(db, "users", user.uid), {
         balance: increment(job.budget)
       });
 
-      // 2. Удаляем саму задачу
+      // 2. Удаляем саму задачу из коллекции jobs
       await deleteDoc(doc(db, "jobs", job.id));
 
-      // 3. Закрываем модальное окно
+      // 3. Закрываем модалку
       setSelectedJob(null);
-      alert("Проект успешно удален, деньги возвращены.");
-    } catch (err) {
-      console.error("Ошибка при удалении:", err);
-      alert("Не удалось удалить проект.");
+      alert("Заказ отменен, средства возвращены.");
+    } catch (e) {
+      console.error(e);
+      alert("Ошибка при удалении.");
     } finally {
       setIsSubmitting(false);
     }
-  };
   };
 
   const createJob = async (e) => {
