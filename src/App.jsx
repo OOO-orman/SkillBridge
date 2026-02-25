@@ -185,11 +185,10 @@ if (!data.ok) {
       unsubJobs(); unsubApps(); unsubNotifs(); unsubTop(); unsubReviews();
       if(isAdmin) {
         unsubDisputes?.();
-        unsubEarnings?.(); // <-- Добавь эту строчку здесь
+        unsubEarnings?.(); 
       }
     };
-  }, [user, userData, isAdmin]); // Добавлен userData в зависимости
-
+  }, [user, userData, isAdmin]); 
   // --- ЖИВОЙ ЧАТ ---
   useEffect(() => {
     if (!chatUser?.chatId) { setMessages([]); return; }
@@ -200,7 +199,6 @@ if (!data.ok) {
     return () => unsub();
   }, [chatUser?.chatId]);
 
-  // -- ФУНКЦИИ ЛОГИКИ --
   // -- ФУНКЦИИ ЛОГИКИ --
   const handleApply = async (job) => {
     if (isSubmitting || myApplications.includes(job.id) || userData?.role !== 'student') {
@@ -733,6 +731,25 @@ if (!data.ok) {
         {/* ADMIN TAB */}
         {tab === 'admin' && isAdmin && (
           <div className="space-y-4 animate-in fade-in text-left">
+            {/* --- ВИДЖЕТ ПРИБЫЛИ ПРОЕКТА --- */}
+  <div className="bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 rounded-[35px] p-8 shadow-2xl relative overflow-hidden border border-white/10 mb-4">
+    <div className="relative z-10 text-left">
+      <p className="text-white/60 text-[10px] font-black uppercase tracking-[2px] mb-1">
+        Доход платформы (10%)
+      </p>
+      <h2 className="text-4xl font-black text-white italic tracking-tight">
+        ₸{totalEarnings.toLocaleString()}
+      </h2>
+      <div className="mt-4 inline-flex items-center gap-2 bg-black/20 px-3 py-1 rounded-full border border-white/10">
+        <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse"></div>
+        <span className="text-[9px] font-bold text-white/90 uppercase tracking-tighter">
+          Живой поток данных
+        </span>
+      </div>
+    </div>
+    {/* Иконка тренда на фоне */}
+    <TrendingUp className="absolute -right-4 -bottom-4 text-white/10" size={140} />
+  </div>
             <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-red-500 mb-8 px-2">Панель Арбитража</h2>
             {disputes.length > 0 ? disputes.map(app => (
               <div key={app.id} className="bg-[#151a24] p-6 rounded-[35px] border border-red-500/10 space-y-5 shadow-2xl relative">
