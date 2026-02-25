@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
 import { auth, db } from './firebaseConfig';
+import { LayoutGrid, Rocket, Trophy, User, Plus, Loader2, Trash2 } from 'lucide-react';
 import { signOut } from 'firebase/auth';
 import { 
   doc, updateDoc, collection, onSnapshot, addDoc, query, 
