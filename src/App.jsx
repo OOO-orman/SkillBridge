@@ -62,15 +62,17 @@ const App = () => {
       
       const tgUser = tg.initDataUnsafe?.user;
       
-      // Если юзер авторизован на сайте и зашел через ТГ — привязываем ID
+      // КРИТИЧНО: проверяем, что tgChatId ЕЩЕ НЕТ в userData
+      // Если он уже есть, ничего не делаем (это спасет от зависания)
       if (user && tgUser && !userData?.tgChatId) {
+        console.log("Записываю TG ID...");
         updateDoc(doc(db, "users", user.uid), {
           tgChatId: tgUser.id.toString(),
           tgUsername: tgUser.username || ''
-        }).catch(err => console.error("Ошибка привязки ТГ:", err));
+        }).catch(e => console.error("Ошибка:", e));
       }
     }
-  }, [user, userData]); // Добавили зависимости, чтобы сработало при загрузке юзера\
+  }, [user, userData?.tgChatId]); // Следим только за наличием ID, [user, userData]); // Добавили зависимости, чтобы сработало при загрузке юзера\
   // Функция для отправки уведомлений в Telegram
   const sendBotNotification = async (targetUserId, message) => {
     try {
