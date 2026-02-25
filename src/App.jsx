@@ -165,27 +165,33 @@ if (!data.ok) {
       setUserReviews(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });
 
+   // 1. Объявляем ВСЕ переменные для админа в одном месте
     let unsubDisputes;
-    let unsubEarnings;
-    if (isAdmin) {  
-      // 1. Слушатель споров (уже был)
+    let unsubEarnings; 
+
+    if (isAdmin) {
+      // Слушатель споров
       unsubDisputes = onSnapshot(query(collection(db, "applications"), where("status", "in", ["На проверке", "Спор", "dispute"])), (snap) => {
         setDisputes(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       });
 
-      // 2. ДОБАВЛЯЕМ: Слушатель прибыли платформы
+      // Слушатель прибыли
       unsubEarnings = onSnapshot(collection(db, "platform_earnings"), (snap) => {
         const total = snap.docs.reduce((acc, doc) => acc + (doc.data().amount || 0), 0);
         setTotalEarnings(total);
       });
     }
 
+    // 2. Функция очистки (теперь всё будет работать без ошибок)
     return () => {
-      // Здесь мы используем ?. чтобы код не упал, если подписки не было (например, ты не админ)
-      unsubJobs(); unsubApps(); unsubNotifs(); unsubTop(); unsubReviews();
-      if(isAdmin) {
+      unsubJobs(); 
+      unsubApps?.(); 
+      unsubNotifs?.(); 
+      unsubTop?.(); 
+      unsubReviews?.();
+      if (isAdmin) {
         unsubDisputes?.();
-        unsubEarnings?.(); 
+        unsubEarnings?.(); // Теперь JS видит эту переменную
       }
     };
   }, [user, userData, isAdmin]); 
