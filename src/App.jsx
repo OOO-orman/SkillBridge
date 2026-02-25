@@ -660,11 +660,20 @@ const App = () => {
            
            <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
               {messages.length > 0 ? messages.map((m, i) => (
-                <div key={i} className={`flex ${m.senderId === user.uid ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2`}>
-                   <div className={`max-w-[80%] p-4 rounded-3xl text-[13px] leading-relaxed shadow-lg text-left ${m.senderId === user.uid ? 'bg-purple-600 text-white rounded-tr-none' : 'bg-[#151a24] text-slate-300 rounded-tl-none border border-white/5'}`}>
-                      {m.text}
-                   </div>
-                </div>
+                <div key={i} className={`flex flex-col ${m.senderId === user.uid ? 'items-end' : 'items-start'} animate-in fade-in slide-in-from-bottom-2`}>
+  {/* Имя того, кто написал */}
+  <span className="text-[8px] font-black uppercase text-slate-600 mb-1 px-2 tracking-tighter">
+    {m.senderId === user.uid ? 'Вы' : m.senderName}
+  </span>
+  
+  <div className={`max-w-[85%] p-4 rounded-3xl text-[13px] shadow-lg text-left ${
+    m.senderId === user.uid 
+      ? 'bg-purple-600 text-white rounded-tr-none' 
+      : 'bg-[#151a24] text-slate-300 rounded-tl-none border border-white/5'
+  }`}>
+    {m.text}
+  </div>
+</div>
               )) : (
                 <div className="py-20 text-center opacity-10">
                    <MessageCircle size={60} className="mx-auto mb-4"/>
