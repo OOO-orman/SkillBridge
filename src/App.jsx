@@ -62,8 +62,6 @@ const App = () => {
       
       const tgUser = tg.initDataUnsafe?.user;
       
-      // КРИТИЧНО: проверяем, что tgChatId ЕЩЕ НЕТ в userData
-      // Если он уже есть, ничего не делаем (это спасет от зависания)
       if (user && tgUser && !userData?.tgChatId) {
         console.log("Записываю TG ID...");
         updateDoc(doc(db, "users", user.uid), {
@@ -285,43 +283,69 @@ const App = () => {
 
   if (!user) return <AuthPage />;
 
+  if (loading || !userData) {
+    return (
+      <div className="min-h-screen bg-[#0b0e14] flex items-center justify-center">
+        <Loader2 className="text-blue-500 animate-spin" size={48} />
+      </div>
+    );
+  }
+
+  // 2. ВЫЧИСЛЕНИЯ (Только когда данные ТОЧНО загружены)
+  const xp = userData?.experience || 0;
+  const level = Math.floor(xp / 1000) + 1;
+  const progress = (xp % 1000) / 10;
+
   const filteredJobs = jobs
     .filter(j => j.status === 'open' && (activeCat === 'Все' || j.category === activeCat))
     .filter(j => j.title.toLowerCase().includes(searchTerm.toLowerCase()))
     .sort((a, b) => sortBy === 'budget' ? b.budget - a.budget : (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
 
-  const xp = userData?.experience || 0;
-  const level = Math.floor(xp / 1000) + 1;
-  const progress = (xp % 1000) / 10;
-
+  // 3. ЕДИНЫЙ RETURN ИНТЕРФЕЙСА
   return (
     <div className="min-h-screen bg-[#0b0e14] text-slate-200 pb-32 font-sans selection:bg-purple-500/30">
+      
       {/* HEADER */}
       <header className="max-w-md mx-auto pt-8 px-6 flex justify-between items-center">
         <div className="flex items-center gap-4">
           <UserAvatar u={userData} />
           <div className="text-left">
-            <h1 className="text-[14px] font-black text-white uppercase italic tracking-tight">{userData?.name}</h1>
+            <h1 className="text-[14px] font-black text-white uppercase italic tracking-tight">
+              {userData?.name}
+            </h1>
             <div className="flex items-center gap-2 mt-0.5">
               <span className="text-[8px] bg-white/5 text-slate-400 px-2 py-0.5 rounded font-black uppercase">
                 {userData?.role === 'student' ? `Уровень ${level}` : 'Компания'}
               </span>
-              {(userData?.hasSubscription || isOwner) && <Crown size={12} className="text-yellow-500 animate-bounce"/>}
+              {(userData?.hasSubscription || isOwner) && (
+                <Crown size={12} className="text-yellow-500 animate-bounce" />
+              )}
             </div>
           </div>
         </div>
+
         <div className="flex gap-3">
           {isAdmin && (
-            <button onClick={() => setTab('admin')} className={`p-3 rounded-2xl border border-white/5 transition-all ${tab === 'admin' ? 'bg-red-600 text-white' : 'bg-[#151a24] text-red-500'}`}>
+            <button 
+              onClick={() => setTab('admin')} 
+              className={`p-3 rounded-2xl border border-white/5 transition-all ${tab === 'admin' ? 'bg-red-600 text-white' : 'bg-[#151a24] text-red-500'}`}
+            >
               <Gavel size={20}/>
             </button>
           )}
-          <button onClick={() => setShowNotifications(!showNotifications)} className="p-3 bg-[#151a24] rounded-2xl border border-white/5 text-slate-400 relative active:scale-95 transition-transform">
+          <button 
+            onClick={() => setShowNotifications(!showNotifications)} 
+            className="p-3 bg-[#151a24] rounded-2xl border border-white/5 text-slate-400 relative active:scale-95 transition-transform"
+          >
             <Bell size={20}/>
-            {notifications.some(n => !n.read) && <div className="absolute top-3 right-3 w-2.5 h-2.5 bg-red-600 rounded-full border-2 border-[#0b0e14]"></div>}
+            {notifications.some(n => !n.read) && (
+              <div className="absolute top-3 right-3 w-2.5 h-2.5 bg-red-600 rounded-full border-2 border-[#0b0e14]"></div>
+            )}
           </button>
         </div>
       </header>
+
+      {/* Дальше продолжай остальной код (Tabs, Main и т.д.) */}
 
       {/* NOTIFICATIONS */}
       {showNotifications && (
