@@ -115,10 +115,8 @@ if (!data.ok) {
 
   // -- СЛУШАТЕЛИ FIREBASE --
  useEffect(() => {
-    // 1. Если нет базового юзера (Auth), выходим сразу
     if (!user) return;
 
-    // 2. Если данные профиля есть, обновляем стейт редактирования
     if (userData) {
       setEditData({
         bio: userData.bio || '',
@@ -168,7 +166,8 @@ if (!data.ok) {
     });
 
     let unsubDisputes;
-    if (isAdmin) {
+    let unsubEarnings;
+    if (isAdmin) {  
       // 1. Слушатель споров (уже был)
       unsubDisputes = onSnapshot(query(collection(db, "applications"), where("status", "in", ["На проверке", "Спор", "dispute"])), (snap) => {
         setDisputes(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
@@ -182,6 +181,7 @@ if (!data.ok) {
     }
 
     return () => {
+      // Здесь мы используем ?. чтобы код не упал, если подписки не было (например, ты не админ)
       unsubJobs(); unsubApps(); unsubNotifs(); unsubTop(); unsubReviews();
       if(isAdmin) {
         unsubDisputes?.();
