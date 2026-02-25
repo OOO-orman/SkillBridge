@@ -127,7 +127,12 @@ const App = () => {
 
   // -- ФУНКЦИИ ЛОГИКИ --
   const handleApply = async (job) => {
-    if (isSubmitting || myApplications.includes(job.id)) return;
+    // Добавляем проверку на роль: только студент может откликаться
+    if (isSubmitting || myApplications.includes(job.id) || userData?.role !== 'student') {
+      if (userData?.role !== 'student') alert("Только студенты могут принимать заказы!");
+      return;
+    }
+    
     setIsSubmitting(true);
     try {
       await addDoc(collection(db, "applications"), {
@@ -612,9 +617,19 @@ const App = () => {
               <div className="max-h-60 overflow-y-auto mb-10 custom-scrollbar pr-2">
                  <p className="text-slate-400 text-sm leading-relaxed whitespace-pre-wrap">{selectedJob.desc}</p>
               </div>
-              <button disabled={isSubmitting || myApplications.includes(selectedJob.id)} onClick={() => handleApply(selectedJob)} className={`w-full py-6 rounded-[28px] text-[10px] font-black uppercase tracking-[0.3em] transition-all flex items-center justify-center gap-3 ${myApplications.includes(selectedJob.id) ? 'bg-slate-800 text-slate-500 cursor-not-allowed' : 'bg-purple-600 text-white active:scale-95 shadow-xl shadow-purple-600/20'}`}>
-                 {isSubmitting ? <Loader2 className="animate-spin" size={18}/> : myApplications.includes(selectedJob.id) ? 'Отклик отправлен' : 'Взять проект в работу'}
-              </button>
+              {userData?.role === 'student' ? (
+  <button 
+    disabled={isSubmitting || myApplications.includes(selectedJob.id)} 
+    onClick={() => handleApply(selectedJob)} 
+    className={`w-full py-6 rounded-[28px] text-[10px] font-black uppercase tracking-[0.3em] transition-all flex items-center justify-center gap-3 ${myApplications.includes(selectedJob.id) ? 'bg-slate-800 text-slate-500 cursor-not-allowed' : 'bg-purple-600 text-white active:scale-95 shadow-xl shadow-purple-600/20'}`}
+  >
+     {isSubmitting ? <Loader2 className="animate-spin" size={18}/> : myApplications.includes(selectedJob.id) ? 'Отклик отправлен' : 'Взять проект в работу'}
+  </button>
+) : (
+  <div className="w-full py-6 bg-white/5 border border-white/5 rounded-[28px] text-[10px] font-black uppercase text-slate-500 text-center italic tracking-widest">
+    Только для студентов
+  </div>
+)}
            </div>
         </div>
       )}
