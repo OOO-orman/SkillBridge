@@ -18,7 +18,7 @@ import AuthPage from './AuthPage';
 const App = () => {
   const { user, userData } = useAuth();
   
-  // -- СОСТОЯНИЯ (ВОССТАНОВЛЕНО ПОЛНОСТЬЮ) --
+  // -- СОСТОЯНИЯ --
   const [tab, setTab] = useState('home');
   const [activeCat, setActiveCat] = useState('Все');
   const [jobs, setJobs] = useState([]);
@@ -60,10 +60,12 @@ const App = () => {
   const isOwner = user?.email === 'armanomurzak6@gmail.com';
   const isAdmin = userData?.role === 'admin' || isOwner;
 
-  // -- СЛУШАТЕЛИ FIREBASE (ПОЛНЫЙ ЦИКЛ) --
+  // --- УНИВЕРСАЛЬНЫЙ ID ЧАТА ---
+  const getChatId = (u1, u2, jId) => [u1, u2, jId].sort().join('_');
+
+  // -- СЛУШАТЕЛИ FIREBASE --
   useEffect(() => {
     if (!user || !userData) return;
-
     setEditData({
       bio: userData.bio || '',
       github: userData.github || '',
@@ -72,13 +74,11 @@ const App = () => {
       isAvailable: userData.isAvailable ?? true
     });
 
-    // Задания
     const unsubJobs = onSnapshot(query(collection(db, "jobs"), orderBy("createdAt", "desc")), (snap) => {
       setJobs(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       setLoading(false);
     });
 
-    // Отклики и работы
     const appsQuery = userData.role === 'company' 
       ? query(collection(db, "applications"), where("companyId", "==", user.uid))
       : query(collection(db, "applications"), where("userId", "==", user.uid));
@@ -89,48 +89,43 @@ const App = () => {
       setMyApplications(appsData.map(app => app.jobId));
     });
 
-    // Уведомления
     const unsubNotifs = onSnapshot(query(collection(db, "notifications"), where("toId", "==", user.uid), orderBy("createdAt", "desc"), limit(20)), (snap) => {
       setNotifications(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });
 
-    // ТОП СТУДЕНТОВ
     const unsubTop = onSnapshot(query(collection(db, "users"), where("role", "==", "student"), orderBy("experience", "desc"), limit(100)), (snap) => {
       const rawUsers = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      const sorted = rawUsers.sort((a, b) => (Number(b.experience) || 0) - (Number(a.experience) || 0));
-      setTopUsers(sorted);
+      setTopUsers(rawUsers.sort((a,b) => (b.experience||0) - (a.experience||0)));
     });
 
-    // Отзывы в профиле
     const unsubReviews = onSnapshot(query(collection(db, "reviews"), where("toId", "==", user.uid), orderBy("createdAt", "desc"), limit(10)), (snap) => {
       setUserReviews(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });
 
-    // Админка
-    let unsubDisputes, unsubAllUsers;
+    let unsubDisputes;
     if (isAdmin) {
       unsubDisputes = onSnapshot(query(collection(db, "applications"), where("status", "in", ["На проверке", "Спор", "dispute"])), (snap) => {
         setDisputes(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
       });
-      unsubAllUsers = onSnapshot(collection(db, "users"), (snap) => {
-        setAllUsers(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-      });
     }
-    return () => { 
-      unsubJobs(); 
-      unsubApps(); 
-      unsubNotifs(); 
-      unsubTop(); 
-      unsubReviews(); 
-      if (isAdmin) {
-        unsubDisputes?.();
-        unsubAllUsers?.();
-      }
+
+    return () => {
+      unsubJobs(); unsubApps(); unsubNotifs(); unsubTop(); unsubReviews();
+      if(isAdmin) unsubDisputes?.();
     };
   }, [user, userData, isAdmin]);
 
-  // -- ЛОГИКА ФУНКЦИЙ (ВОССТАНОВЛЕНО)
+  // --- ЖИВОЙ ЧАТ ---
+  useEffect(() => {
+    if (!chatUser?.chatId) { setMessages([]); return; }
+    const q = query(collection(db, "chats", chatUser.chatId, "messages"), orderBy("createdAt", "asc"));
+    const unsub = onSnapshot(q, (snap) => {
+      setMessages(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+    return () => unsub();
+  }, [chatUser?.chatId]);
 
+  // -- ФУНКЦИИ ЛОГИКИ --
   const handleApply = async (job) => {
     if (isSubmitting || myApplications.includes(job.id)) return;
     setIsSubmitting(true);
@@ -150,12 +145,11 @@ const App = () => {
     const formData = new FormData(e.target);
     const budget = Number(formData.get('budget'));
     if (isSubmitting || (userData.balance || 0) < budget) return alert("Недостаточно средств!");
-    
     setIsSubmitting(true);
     try {
       await updateDoc(doc(db, "users", user.uid), { balance: increment(-budget) });
       await addDoc(collection(db, "jobs"), {
-        title: formData.get('title'), desc: formData.get('desc'), budget, 
+        title: formData.get('title'), desc: formData.get('desc'), budget,
         category: formData.get('category'), deadline: formData.get('deadline'),
         company: userData.name, companyId: user.uid, status: 'open',
         frozenBudget: budget, createdAt: serverTimestamp()
@@ -184,7 +178,6 @@ const App = () => {
     const jobRef = doc(db, "jobs", app.jobId);
     const jobSnap = await getDoc(jobRef);
     const amount = jobSnap.data()?.frozenBudget || 0;
-
     await updateDoc(doc(db, "users", app.userId), {
       balance: increment(amount), experience: increment(500), completedProjects: increment(1),
       totalRating: increment(rating), reviewCount: increment(1)
@@ -198,7 +191,6 @@ const App = () => {
     setIsSubmitting(false);
   };
 
-  // -- КОМПОНЕНТЫ ОТОБРАЖЕНИЯ --
   const UserAvatar = ({ u, size = "w-12 h-12", rounded = "rounded-2xl" }) => (
     <div className={`${size} ${rounded} bg-[#151a24] border border-white/5 overflow-hidden shadow-xl shrink-0 relative`}>
       <img src={u?.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${u?.avatarSeed || u?.name}`} className="w-full h-full object-cover" alt="avatar" />
@@ -248,32 +240,31 @@ const App = () => {
         </div>
       </header>
 
-      {/* УВЕДОМЛЕНИЯ (ВОССТАНОВЛЕНО) */}
+      {/* NOTIFICATIONS */}
       {showNotifications && (
         <div className="fixed top-24 right-6 left-6 z-[100] bg-[#151a24] rounded-[32px] border border-white/10 shadow-2xl p-6 animate-in fade-in zoom-in duration-200">
-           <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xs font-black uppercase tracking-widest text-slate-400">История уведомлений</h3>
-              <button onClick={() => setShowNotifications(false)} className="text-slate-500 hover:text-white"><X size={18}/></button>
-           </div>
-           <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
-              {notifications.length > 0 ? notifications.map(n => (
-                <div key={n.id} className="p-4 bg-white/5 rounded-2xl border border-white/5 text-left">
-                   <div className="flex justify-between items-start mb-1">
-                      <p className="text-[10px] font-bold text-purple-400 uppercase tracking-tighter">{n.title}</p>
-                      <span className="text-[8px] text-slate-600 font-bold">{n.createdAt?.toDate().toLocaleDateString()}</span>
-                   </div>
-                   <p className="text-[11px] text-slate-300 leading-relaxed">{n.text}</p>
+          <div className="flex justify-between items-center mb-4 text-left">
+            <h3 className="text-xs font-black uppercase tracking-widest text-slate-400">История уведомлений</h3>
+            <button onClick={() => setShowNotifications(false)} className="text-slate-500 hover:text-white"><X size={18}/></button>
+          </div>
+          <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+            {notifications.length > 0 ? notifications.map(n => (
+              <div key={n.id} className="p-4 bg-white/5 rounded-2xl border border-white/5 text-left">
+                <div className="flex justify-between items-start mb-1">
+                  <p className="text-[10px] font-bold text-purple-400 uppercase tracking-tighter">{n.title}</p>
+                  <span className="text-[8px] text-slate-600 font-bold">{n.createdAt?.toDate().toLocaleDateString()}</span>
                 </div>
-              )) : (
-                <div className="py-10 text-center text-slate-600 font-black uppercase text-[10px] italic">Уведомлений пока нет</div>
-              )}
-           </div>
+                <p className="text-[11px] text-slate-300 leading-relaxed">{n.text}</p>
+              </div>
+            )) : (
+              <div className="py-10 text-center text-slate-600 font-black uppercase text-[10px] italic">Уведомлений пока нет</div>
+            )}
+          </div>
         </div>
       )}
 
       {/* MAIN CONTENT */}
       <main className="max-w-md mx-auto px-6 mt-8">
-        
         {/* HOME TAB */}
         {tab === 'home' && (
           <div className="space-y-6 animate-in fade-in duration-500">
@@ -281,7 +272,7 @@ const App = () => {
               <input type="text" placeholder="Поиск проектов..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full bg-[#151a24] border border-white/5 rounded-2xl py-4 px-12 text-sm outline-none focus:border-purple-600/50 transition-all shadow-inner group-hover:border-white/10" />
               <div className="absolute left-4 top-4 text-slate-600"><Search size={18} /></div>
             </div>
-            
+
             <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
               {categories.map(cat => (
                 <button key={cat.id} onClick={() => setActiveCat(cat.id)} className={`flex items-center gap-2 px-5 py-3 rounded-2xl border transition-all text-[10px] font-black uppercase tracking-widest ${activeCat === cat.id ? 'bg-purple-600 border-purple-600 text-white shadow-lg shadow-purple-600/20' : 'bg-[#151a24] border-white/5 text-slate-500'}`}>
@@ -289,17 +280,17 @@ const App = () => {
                 </button>
               ))}
             </div>
-
+            
             <div className="flex justify-end gap-4 px-2">
-               <button onClick={() => setSortBy('newest')} className={`text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-colors ${sortBy === 'newest' ? 'text-purple-500' : 'text-slate-600'}`}><RotateCcw size={10}/> Новые</button>
-               <button onClick={() => setSortBy('budget')} className={`text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-colors ${sortBy === 'budget' ? 'text-purple-500' : 'text-slate-600'}`}><TrendingUp size={10}/> Бюджет</button>
+              <button onClick={() => setSortBy('newest')} className={`text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-colors ${sortBy === 'newest' ? 'text-purple-500' : 'text-slate-600'}`}><RotateCcw size={10}/> Новые</button>
+              <button onClick={() => setSortBy('budget')} className={`text-[9px] font-black uppercase tracking-widest flex items-center gap-1.5 transition-colors ${sortBy === 'budget' ? 'text-purple-500' : 'text-slate-600'}`}><TrendingUp size={10}/> Бюджет</button>
             </div>
 
             <div className="space-y-4">
               {loading ? (
                 [1,2,3].map(i => <div key={i} className="h-28 bg-[#151a24] rounded-[32px] animate-pulse border border-white/5"></div>)
               ) : filteredJobs.length > 0 ? filteredJobs.map(job => (
-                <div key={job.id} onClick={() => setSelectedJob(job)} className="bg-[#151a24] p-6 rounded-[32px] border border-white/5 flex items-center gap-5 cursor-pointer hover:border-purple-500/30 transition-all active:scale-95 text-left group">
+                <div key={job.id} onClick={() => setSelectedJob(job)} className="bg-[#151a24] p-6 rounded-[32px] border border-white/5 flex items-center gap-5 cursor-pointer hover:border-purple-500/30 transition-all active:scale-95 text-left group shadow-lg">
                   <div className="w-14 h-14 bg-[#0b0e14] rounded-2xl flex items-center justify-center text-purple-500 shadow-inner group-hover:scale-110 transition-transform">
                     {job.category === 'Дизайн' ? <Palette size={24}/> : job.category === 'Код' ? <Code size={24}/> : <Briefcase size={24}/>}
                   </div>
@@ -310,8 +301,8 @@ const App = () => {
                   <div className="text-right">
                     <p className="text-emerald-400 font-black text-sm">{job.budget?.toLocaleString()} ₸</p>
                     <div className="flex items-center justify-end gap-1 mt-1 opacity-40">
-                       <ShieldCheck size={10} className="text-emerald-500"/>
-                       <span className="text-[8px] text-white font-bold uppercase italic">Safe</span>
+                      <ShieldCheck size={10} className="text-emerald-500"/>
+                      <span className="text-[8px] text-white font-bold uppercase italic tracking-widest">Safe</span>
                     </div>
                   </div>
                 </div>
@@ -325,76 +316,74 @@ const App = () => {
         {/* APPLICATIONS TAB */}
         {tab === 'apps' && (
           <div className="space-y-4 animate-in fade-in text-left">
-             <div className="flex justify-between items-center mb-6">
-                <h2 className="text-[10px] font-black uppercase tracking-widest text-slate-500 italic">Активные процессы</h2>
-             </div>
-             {applications.length > 0 ? applications.map(app => (
-                <div key={app.id} className="bg-[#151a24] p-6 rounded-[35px] border border-white/5 space-y-5 shadow-2xl relative">
-                   <div className="flex justify-between items-start">
-                      <div className="max-w-[70%]">
-                        <h4 className="text-[15px] font-bold text-white leading-tight mb-2 italic tracking-tight">{app.jobTitle}</h4>
-                        <div className="flex items-center gap-2">
-                           <span className={`px-3 py-1 rounded-lg text-[8px] font-black uppercase border ${app.status === 'В работе' ? 'border-purple-500/30 text-purple-400 bg-purple-500/5' : 'border-emerald-500/30 text-emerald-500 bg-emerald-500/5'}`}>{app.status}</span>
-                           <span className="text-[10px] font-black text-slate-600">{app.budget?.toLocaleString()} ₸</span>
-                        </div>
-                      </div>
-                      <button onClick={() => setChatUser({
-                        id: userData.role === 'company' ? app.userId : app.companyId, 
-                        name: userData.role === 'company' ? app.userName : app.companyName, 
-                        jobId: app.jobId
-                      })} className="p-4 bg-white/5 rounded-2xl text-slate-400 hover:text-purple-400 active:scale-90 transition-all shadow-lg border border-white/5">
-                        <MessageCircle size={20}/>
-                      </button>
-                   </div>
-                   
-                   <div className="flex gap-2">
-                      {userData.role === 'company' && app.status === 'Ожидание' && (
-                        <button disabled={isSubmitting} onClick={async () => {
-                           setIsSubmitting(true);
-                           await updateDoc(doc(db, "applications", app.id), { status: 'В работе' });
-                           await updateDoc(doc(db, "jobs", app.jobId), { status: 'busy', currentWorkerId: app.userId });
-                           await addDoc(collection(db, "notifications"), {
-                              toId: app.userId, title: "Вас выбрали!", text: `Вы назначены исполнителем проекта: ${app.jobTitle}`, createdAt: serverTimestamp()
-                           });
-                           setIsSubmitting(false);
-                        }} className="flex-1 bg-emerald-600 py-4 rounded-2xl text-[10px] font-black uppercase text-white shadow-lg flex items-center justify-center gap-2">
-                          {isSubmitting && <Loader2 size={14} className="animate-spin"/>} Принять отклик
-                        </button>
-                      )}
-                      
-                      {userData.role === 'student' && app.status === 'В работе' && (
-                        <button onClick={async () => {
-                           await updateDoc(doc(db, "applications", app.id), { status: 'На проверке' });
-                           await addDoc(collection(db, "notifications"), {
-                             toId: app.companyId, title: "Работа сдана", text: `Студент ${userData.name} сдал проект: ${app.jobTitle}`, createdAt: serverTimestamp()
-                           });
-                        }} className="flex-1 bg-purple-600 py-4 rounded-2xl text-[10px] font-black uppercase text-white shadow-lg">Сдать работу на проверку</button>
-                      )}
-
-                      {userData.role === 'company' && app.status === 'На проверке' && (
-                        <div className="flex w-full gap-2">
-                          <button onClick={() => setReviewModal(app)} className="flex-1 bg-emerald-600 py-4 rounded-2xl text-[10px] font-black uppercase text-white">Принять проект</button>
-                          <button onClick={async () => {
-                             await updateDoc(doc(db, "applications", app.id), { status: 'Спор' });
-                             await addDoc(collection(db, "notifications"), {
-                                toId: app.userId, title: "Открыт спор", text: `Заказчик открыл спор по проекту: ${app.jobTitle}`, createdAt: serverTimestamp()
-                             });
-                          }} className="px-4 bg-red-600/20 text-red-500 py-4 rounded-2xl text-[10px] font-black uppercase border border-red-500/20">Спор</button>
-                        </div>
-                      )}
-                   </div>
+            <h2 className="text-[10px] font-black uppercase tracking-widest text-slate-500 px-2 italic mb-4">Активные процессы</h2>
+            {applications.length > 0 ? applications.map(app => (
+              <div key={app.id} className="bg-[#151a24] p-6 rounded-[35px] border border-white/5 space-y-5 shadow-2xl relative overflow-hidden">
+                <div className="flex justify-between items-start relative z-10">
+                  <div className="max-w-[70%] text-left">
+                    <h4 className="text-[15px] font-bold text-white leading-tight mb-2 italic tracking-tight">{app.jobTitle}</h4>
+                    <div className="flex items-center gap-2">
+                      <span className={`px-3 py-1 rounded-lg text-[8px] font-black uppercase border ${app.status === 'В работе' ? 'border-purple-500/30 text-purple-400 bg-purple-500/5' : 'border-emerald-500/30 text-emerald-500 bg-emerald-500/5'}`}>{app.status}</span>
+                      <span className="text-[10px] font-black text-slate-600">{app.budget?.toLocaleString()} ₸</span>
+                    </div>
+                  </div>
+                  <button onClick={() => setChatUser({
+                    id: userData.role === 'company' ? app.userId : app.companyId,
+                    name: userData.role === 'company' ? app.userName : app.companyName,
+                    jobId: app.jobId,
+                    chatId: getChatId(app.userId, app.companyId, app.jobId)
+                  })} className="p-4 bg-white/5 rounded-2xl text-slate-400 hover:text-purple-400 active:scale-90 transition-all shadow-lg border border-white/5">
+                    <MessageCircle size={20}/>
+                  </button>
                 </div>
-             )) : (
-                <div className="text-center py-20 opacity-20 font-black uppercase text-xs italic tracking-widest">Активных дел пока нет</div>
-             )}
+
+                <div className="flex gap-2">
+                  {userData.role === 'company' && app.status === 'Ожидание' && (
+                    <button disabled={isSubmitting} onClick={async () => {
+                      setIsSubmitting(true);
+                      await updateDoc(doc(db, "applications", app.id), { status: 'В работе' });
+                      await updateDoc(doc(db, "jobs", app.jobId), { status: 'busy', currentWorkerId: app.userId });
+                      await addDoc(collection(db, "notifications"), {
+                        toId: app.userId, title: "Вас выбрали!", text: `Вы назначены исполнителем проекта: ${app.jobTitle}`, createdAt: serverTimestamp()
+                      });
+                      setIsSubmitting(false);
+                    }} className="flex-1 bg-emerald-600 py-4 rounded-2xl text-[10px] font-black uppercase text-white shadow-lg flex items-center justify-center gap-2">
+                      {isSubmitting && <Loader2 size={14} className="animate-spin"/>} Принять отклик
+                    </button>
+                  )}
+
+                  {userData.role === 'student' && app.status === 'В работе' && (
+                    <button onClick={async () => {
+                      await updateDoc(doc(db, "applications", app.id), { status: 'На проверке' });
+                      await addDoc(collection(db, "notifications"), {
+                        toId: app.companyId, title: "Работа сдана", text: `Студент ${userData.name} сдал проект: ${app.jobTitle}`, createdAt: serverTimestamp()
+                      });
+                    }} className="flex-1 bg-purple-600 py-4 rounded-2xl text-[10px] font-black uppercase text-white shadow-lg">Сдать работу на проверку</button>
+                  )}
+                  {userData.role === 'company' && app.status === 'На проверке' && (
+                    <div className="flex w-full gap-2">
+                      <button onClick={() => setReviewModal(app)} className="flex-1 bg-emerald-600 py-4 rounded-2xl text-[10px] font-black uppercase text-white">Принять проект</button>
+                      <button onClick={async () => {
+                        await updateDoc(doc(db, "applications", app.id), { status: 'Спор' });
+                        await addDoc(collection(db, "notifications"), {
+                          toId: app.userId, title: "Открыт спор", text: `Заказчик открыл спор по проекту: ${app.jobTitle}`, createdAt: serverTimestamp()
+                        });
+                      }} className="px-4 bg-red-600/20 text-red-500 py-4 rounded-2xl text-[10px] font-black uppercase border border-red-500/20">Спор</button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )) : (
+              <div className="text-center py-20 opacity-20 font-black uppercase text-xs italic tracking-widest">Активных дел пока нет</div>
+            )}
           </div>
         )}
 
-        {/* TOP TAB (С ЗАЩИТОЙ ПО ПОДПИСКЕ) */}
+        {/* TOP TAB (С ЗАЩИТОЙ) */}
         {tab === 'top' && (
           <div className="space-y-5 animate-in slide-in-from-right text-left">
              {(!userData?.hasSubscription && userData?.role === 'company' && !isOwner) ? (
-                <div className="bg-[#151a24] p-12 rounded-[40px] border border-white/5 text-center space-y-5">
+                <div className="bg-[#151a24] p-12 rounded-[40px] border border-white/5 text-center space-y-5 shadow-2xl">
                   <div className="w-20 h-20 bg-white/5 rounded-[30px] flex items-center justify-center mx-auto text-yellow-500 shadow-2xl"><Lock size={40}/></div>
                   <div>
                     <h3 className="text-white font-black uppercase tracking-[0.2em] text-sm mb-2">Доступ Elite</h3>
@@ -428,13 +417,12 @@ const App = () => {
           </div>
         )}
 
-        {/* PROFILE TAB (ПОЛНАЯ ЛОГИКА) */}
+        {/* PROFILE TAB */}
         {tab === 'profile' && (
           <div className="space-y-6 pb-10 animate-in fade-in text-left">
-             {/* Wallet Card */}
              <div className="bg-[#1c222d] p-10 rounded-[45px] border border-white/5 shadow-2xl relative overflow-hidden group">
                 <div className="absolute top-0 right-0 w-32 h-32 bg-purple-600/10 blur-[60px] group-hover:bg-purple-600/20 transition-all duration-700"></div>
-                <div className="flex justify-between items-center mb-10 relative z-10">
+                <div className="flex justify-between items-center mb-10 relative z-10 text-left">
                   <div>
                     <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-1 italic">Общий Баланс</p>
                     <p className="text-4xl font-black text-white italic tracking-tighter tabular-nums">{userData?.balance?.toLocaleString() || 0} <span className="text-emerald-400 text-xl font-normal not-italic ml-1">₸</span></p>
@@ -480,20 +468,20 @@ const App = () => {
                         <p className="text-[11px] text-slate-400 italic max-w-[220px] mx-auto mb-8 leading-relaxed">"{userData?.bio || 'Место для вашей крутой биографии...'}"</p>
                         
                         <div className="flex flex-col gap-3">
-                           <button onClick={() => setIsEditingProfile(true)} className="w-full py-4 bg-white/5 border border-white/5 rounded-2xl text-[9px] font-black uppercase text-slate-400 flex items-center justify-center gap-2 hover:bg-white/10 transition-colors"><Edit3 size={14}/> Настроить профиль</button>
+                           <button onClick={() => setIsEditingProfile(true)} className="w-full py-4 bg-white/5 border border-white/5 rounded-2xl text-[9px] font-black uppercase text-slate-400 flex items-center justify-center gap-2 hover:bg-white/10 transition-colors shadow-lg"><Edit3 size={14}/> Настроить профиль</button>
                            <button onClick={handleLogout} className="w-full py-4 bg-red-600/5 border border-red-600/10 rounded-2xl text-[9px] font-black uppercase text-red-500/60 flex items-center justify-center gap-2 hover:bg-red-600/10 transition-colors"><LogOut size={14}/> Выйти из системы</button>
                         </div>
                      </div>
                    ) : (
                      <div className="w-full space-y-4 animate-in slide-in-from-bottom-4 duration-300">
-                        <div className="flex items-center justify-between bg-black/40 p-5 rounded-2xl border border-white/5">
+                        <div className="flex items-center justify-between bg-black/40 p-5 rounded-2xl border border-white/5 text-left">
                            <span className="text-[10px] font-black uppercase text-slate-400 italic">Статус доступности</span>
                            <button onClick={() => setEditData({...editData, isAvailable: !editData.isAvailable})} className={`w-12 h-6 rounded-full transition-all relative ${editData.isAvailable ? 'bg-emerald-600' : 'bg-slate-700'}`}>
                               <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all shadow-sm ${editData.isAvailable ? 'left-7' : 'left-1'}`}></div>
                            </button>
                         </div>
                         <textarea value={editData.bio} onChange={e => setEditData({...editData, bio: e.target.value})} placeholder="Расскажите о себе..." className="w-full bg-black/40 border border-white/5 rounded-2xl p-5 text-[11px] text-slate-300 outline-none h-28 resize-none focus:border-purple-600/40" />
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 text-left">
                            <button onClick={() => setIsEditingProfile(false)} className="flex-1 py-4 bg-white/5 rounded-2xl text-[9px] font-black uppercase text-slate-500">Отмена</button>
                            <button disabled={isSubmitting} onClick={updateProfile} className="flex-1 py-4 bg-emerald-600 rounded-2xl text-[9px] font-black uppercase text-white shadow-lg flex items-center justify-center gap-2">
                              {isSubmitting && <Loader2 size={12} className="animate-spin"/>} Сохранить
@@ -504,11 +492,11 @@ const App = () => {
                 </div>
              </div>
              
-             {/* Portfolio Section */}
-             <div className="space-y-4">
+             {/* Portfolio */}
+             <div className="space-y-4 text-left">
                 <div className="flex justify-between items-center px-2">
                    <h3 className="text-[10px] font-black uppercase text-slate-500 tracking-widest italic flex items-center gap-2"><FolderKanban size={14}/> Моё Портфолио</h3>
-                   <button onClick={() => setShowPortfolioModal(true)} className="p-2 bg-purple-600/10 text-purple-500 rounded-lg border border-purple-500/20 hover:bg-purple-600 hover:text-white transition-all"><Plus size={16}/></button>
+                   <button onClick={() => setShowPortfolioModal(true)} className="p-2 bg-purple-600/10 text-purple-500 rounded-lg border border-purple-500/20 hover:bg-purple-600 hover:text-white transition-all shadow-lg"><Plus size={16}/></button>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   {userData?.portfolio?.length > 0 ? userData.portfolio.map((item) => (
@@ -516,7 +504,7 @@ const App = () => {
                       <div className="absolute -right-4 -top-4 w-12 h-12 bg-purple-600/5 rounded-full blur-xl group-hover:bg-purple-600/20 transition-all"></div>
                       <h4 className="text-[11px] font-bold text-white mb-3 truncate italic">{item.title}</h4>
                       <div className="flex gap-2 relative z-10">
-                        <a href={item.link} target="_blank" rel="noreferrer" className="flex-1 bg-white/5 py-2.5 rounded-xl text-[8px] font-black uppercase text-center text-slate-400 hover:bg-purple-600 hover:text-white transition-all border border-white/5">Кейс</a>
+                        <a href={item.link} target="_blank" rel="noreferrer" className="flex-1 bg-white/5 py-2.5 rounded-xl text-[8px] font-black uppercase text-center text-slate-400 hover:bg-purple-600 hover:text-white transition-all border border-white/5 shadow-sm">Кейс</a>
                         <button onClick={async () => {
                            if(window.confirm("Удалить работу?")) {
                              await updateDoc(doc(db, "users", user.uid), { portfolio: arrayRemove(item) });
@@ -531,11 +519,11 @@ const App = () => {
                   )}
                 </div>
                 
-                {/* REVIEWS LIST */}
+                {/* Reviews */}
                 <div className="mt-10 space-y-4">
                    <h3 className="text-[10px] font-black uppercase text-slate-500 px-2 italic flex items-center gap-2"><Star size={14}/> Последние отзывы</h3>
                    {userReviews.length > 0 ? userReviews.map(rev => (
-                     <div key={rev.id} className="bg-[#151a24] p-5 rounded-[32px] border border-white/5 text-left shadow-sm">
+                     <div key={rev.id} className="bg-[#151a24] p-5 rounded-[32px] border border-white/5 text-left shadow-sm relative">
                         <div className="flex justify-between items-center mb-3">
                           <div className="flex items-center gap-2">
                              <div className="w-6 h-6 bg-purple-600/20 rounded-lg flex items-center justify-center text-purple-400 text-[10px] font-black italic">{rev.fromName?.charAt(0)}</div>
@@ -557,39 +545,44 @@ const App = () => {
           </div>
         )}
 
-        {/* ADMIN TAB (АРБИТРАЖ) */}
+        {/* ADMIN TAB */}
         {tab === 'admin' && isAdmin && (
           <div className="space-y-4 animate-in fade-in text-left">
             <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-red-500 mb-8 px-2">Панель Арбитража</h2>
             {disputes.length > 0 ? disputes.map(app => (
-              <div key={app.id} className="bg-[#151a24] p-6 rounded-[35px] border border-red-500/10 space-y-5 shadow-2xl">
-                <div>
-                  <h4 className="text-white font-bold text-sm leading-tight mb-2">{app.jobTitle}</h4>
+              <div key={app.id} className="bg-[#151a24] p-6 rounded-[35px] border border-red-500/10 space-y-5 shadow-2xl relative">
+                <div className="text-left">
+                  <h4 className="text-white font-bold text-sm leading-tight mb-2 italic">{app.jobTitle}</h4>
                   <div className="flex justify-between items-center bg-black/20 p-3 rounded-xl">
-                    <span className="text-[10px] text-slate-500 font-bold">Сумма в блоке:</span>
+                    <span className="text-[10px] text-slate-500 font-bold uppercase">Сумма в блоке:</span>
                     <span className="text-emerald-400 font-black text-xs">{app.budget?.toLocaleString()} ₸</span>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-2 text-left">
                   <button onClick={async () => {
                      const jRef = doc(db, "jobs", app.jobId);
                      await updateDoc(doc(db, "users", app.userId), { balance: increment(app.budget) });
                      await updateDoc(doc(db, "applications", app.id), { status: 'resolved' });
                      await updateDoc(jRef, { status: 'closed', frozenBudget: 0 });
                      alert("Выплачено студенту");
-                  }} className="bg-emerald-600 py-3.5 rounded-xl text-[9px] font-black uppercase text-white shadow-lg">За студента</button>
+                  }} className="bg-emerald-600 py-3.5 rounded-xl text-[9px] font-black uppercase text-white shadow-lg active:scale-95 transition-all">За студента</button>
                   <button onClick={async () => {
                      const jRef = doc(db, "jobs", app.jobId);
                      await updateDoc(doc(db, "users", app.companyId), { balance: increment(app.budget) });
                      await updateDoc(doc(db, "applications", app.id), { status: 'resolved' });
                      await updateDoc(jRef, { status: 'closed', frozenBudget: 0 });
                      alert("Возвращено заказчику");
-                  }} className="bg-red-600 py-3.5 rounded-xl text-[9px] font-black uppercase text-white shadow-lg">За заказчика</button>
+                  }} className="bg-red-600 py-3.5 rounded-xl text-[9px] font-black uppercase text-white shadow-lg active:scale-95 transition-all">За заказчика</button>
                 </div>
-                <button onClick={() => setChatUser({id: app.userId, name: "Арбитраж: " + app.userName, combinedId: [app.userId, app.companyId, app.jobId].sort().join('_')})} className="w-full py-3.5 bg-white/5 border border-white/5 rounded-xl text-[9px] font-black uppercase text-slate-400">Войти в чат спора</button>
+                <button onClick={() => setChatUser({
+                    id: app.userId, 
+                    name: "Арбитраж: " + app.userName, 
+                    jobId: app.jobId,
+                    chatId: getChatId(app.userId, app.companyId, app.jobId)
+                })} className="w-full py-3.5 bg-white/5 border border-white/5 rounded-xl text-[9px] font-black uppercase text-slate-400 hover:bg-white/10 transition-all shadow-sm">Войти в чат спора</button>
               </div>
             )) : (
-               <div className="py-20 text-center opacity-20 font-black uppercase text-xs italic">Споров нет</div>
+              <div className="py-20 text-center opacity-20 font-black uppercase text-xs italic">Споров нет</div>
             )}
           </div>
         )}
@@ -603,11 +596,11 @@ const App = () => {
         <button onClick={() => setTab('profile')} className={`p-4 rounded-[24px] transition-all duration-300 ${tab === 'profile' ? 'bg-purple-600 text-white scale-110 shadow-lg shadow-purple-600/30' : 'text-slate-500 hover:text-slate-300'}`}><User size={24}/></button>
       </nav>
 
-      {/* --- МОДАЛЬНЫЕ ОКНА (ВСЕ ВОССТАНОВЛЕНЫ) --- */}
+      {/* --- МОДАЛЬНЫЕ ОКНА --- */}
 
       {/* Просмотр проекта */}
       {selectedJob && (
-        <div className="fixed inset-0 z-[200] flex items-end justify-center px-4 pb-10 animate-in fade-in duration-300">
+        <div className="fixed inset-0 z-[200] flex items-end justify-center px-4 pb-10 animate-in fade-in duration-300 text-left">
            <div className="absolute inset-0 bg-[#0b0e14]/90 backdrop-blur-md" onClick={() => setSelectedJob(null)}></div>
            <div className="relative w-full max-w-md bg-[#1c222d] rounded-[45px] p-10 border border-white/10 shadow-2xl animate-in slide-in-from-bottom duration-500">
               <div className="w-16 h-1.5 bg-white/10 rounded-full mx-auto mb-8"></div>
@@ -615,9 +608,9 @@ const App = () => {
                  <span className="px-4 py-1.5 bg-purple-600/20 text-purple-400 rounded-full text-[10px] font-black uppercase border border-purple-500/20 tracking-widest">{selectedJob.category}</span>
                  <p className="text-emerald-400 text-2xl font-black italic tabular-nums">{selectedJob.budget?.toLocaleString()} ₸</p>
               </div>
-              <h2 className="text-2xl font-black text-white mb-4 leading-tight uppercase italic text-left">{selectedJob.title}</h2>
+              <h2 className="text-2xl font-black text-white mb-4 leading-tight uppercase italic">{selectedJob.title}</h2>
               <div className="max-h-60 overflow-y-auto mb-10 custom-scrollbar pr-2">
-                 <p className="text-slate-400 text-sm leading-relaxed text-left whitespace-pre-wrap">{selectedJob.desc}</p>
+                 <p className="text-slate-400 text-sm leading-relaxed whitespace-pre-wrap">{selectedJob.desc}</p>
               </div>
               <button disabled={isSubmitting || myApplications.includes(selectedJob.id)} onClick={() => handleApply(selectedJob)} className={`w-full py-6 rounded-[28px] text-[10px] font-black uppercase tracking-[0.3em] transition-all flex items-center justify-center gap-3 ${myApplications.includes(selectedJob.id) ? 'bg-slate-800 text-slate-500 cursor-not-allowed' : 'bg-purple-600 text-white active:scale-95 shadow-xl shadow-purple-600/20'}`}>
                  {isSubmitting ? <Loader2 className="animate-spin" size={18}/> : myApplications.includes(selectedJob.id) ? 'Отклик отправлен' : 'Взять проект в работу'}
@@ -626,7 +619,7 @@ const App = () => {
         </div>
       )}
 
-      {/* Создание задания (ТОЛЬКО ДЛЯ КОМПАНИЙ) */}
+      {/* Создание задания */}
       {userData.role === 'company' && tab === 'home' && (
         <button onClick={() => setShowCreateModal(true)} className="fixed bottom-28 right-8 w-16 h-16 bg-purple-600 rounded-[24px] flex items-center justify-center text-white shadow-2xl z-50 active:scale-90 transition-all border-4 border-[#0b0e14] hover:bg-purple-500 shadow-purple-600/40">
           <Plus size={32}/>
@@ -636,30 +629,30 @@ const App = () => {
       {showCreateModal && (
         <div className="fixed inset-0 z-[250] flex items-center justify-center px-6">
            <div className="absolute inset-0 bg-[#0b0e14]/95 backdrop-blur-xl" onClick={() => setShowCreateModal(false)}></div>
-           <form onSubmit={createJob} className="relative w-full max-w-md bg-[#151a24] rounded-[40px] p-8 border border-white/10 shadow-2xl space-y-4 animate-in zoom-in-95 duration-200">
-              <h3 className="text-lg font-black uppercase italic text-white mb-4 text-left tracking-tight">Размещение заказа</h3>
-              <input name="title" required type="text" placeholder="Название проекта" className="w-full bg-[#0b0e14] border border-white/5 rounded-2xl p-4 text-sm outline-none focus:border-purple-600/30" />
-              <textarea name="desc" required placeholder="Детальное техническое задание..." className="w-full bg-[#0b0e14] border border-white/5 rounded-2xl p-4 text-sm outline-none h-32 resize-none focus:border-purple-600/30" />
+           <form onSubmit={createJob} className="relative w-full max-w-md bg-[#151a24] rounded-[40px] p-8 border border-white/10 shadow-2xl space-y-4 animate-in zoom-in-95 duration-200 text-left">
+              <h3 className="text-lg font-black uppercase italic text-white mb-4 tracking-tight">Размещение заказа</h3>
+              <input name="title" required type="text" placeholder="Название проекта" className="w-full bg-[#0b0e14] border border-white/5 rounded-2xl p-4 text-sm outline-none focus:border-purple-600/30 transition-all shadow-inner" />
+              <textarea name="desc" required placeholder="Детальное техническое задание..." className="w-full bg-[#0b0e14] border border-white/5 rounded-2xl p-4 text-sm outline-none h-32 resize-none focus:border-purple-600/30 transition-all shadow-inner" />
               <div className="grid grid-cols-2 gap-3">
-                <input name="budget" required type="number" placeholder="Бюджет ₸" className="bg-[#0b0e14] border border-white/5 rounded-2xl p-4 text-sm outline-none focus:border-purple-600/30" />
-                <select name="category" className="bg-[#0b0e14] border border-white/5 rounded-2xl p-4 text-sm outline-none text-slate-400 appearance-none">
+                <input name="budget" required type="number" placeholder="Бюджет ₸" className="bg-[#0b0e14] border border-white/5 rounded-2xl p-4 text-sm outline-none focus:border-purple-600/30 transition-all shadow-inner" />
+                <select name="category" className="bg-[#0b0e14] border border-white/5 rounded-2xl p-4 text-sm outline-none text-slate-400 appearance-none shadow-inner">
                   {categories.filter(c => c.id !== 'Все').map(c => <option key={c.id} value={c.id}>{c.id}</option>)}
                 </select>
               </div>
-              <input name="deadline" required type="text" placeholder="Срок (например: 3 дня)" className="w-full bg-[#0b0e14] border border-white/5 rounded-2xl p-4 text-sm outline-none focus:border-purple-600/30" />
-              <button disabled={isSubmitting} type="submit" className="w-full bg-emerald-600 py-5 rounded-[24px] text-[10px] font-black uppercase text-white shadow-xl shadow-emerald-600/20 flex items-center justify-center gap-2">
+              <input name="deadline" required type="text" placeholder="Срок (например: 3 дня)" className="w-full bg-[#0b0e14] border border-white/5 rounded-2xl p-4 text-sm outline-none focus:border-purple-600/30 transition-all shadow-inner" />
+              <button disabled={isSubmitting} type="submit" className="w-full bg-emerald-600 py-5 rounded-[24px] text-[10px] font-black uppercase text-white shadow-xl shadow-emerald-600/20 flex items-center justify-center gap-2 active:scale-95 transition-all">
                  {isSubmitting ? <Loader2 size={14} className="animate-spin"/> : <Zap size={14}/>} Опубликовать и депонировать
               </button>
            </form>
         </div>
       )}
 
-      {/* ЧАТ (ПОЛНОЕ ВОССТАНОВЛЕНИЕ) */}
+      {/* ЧАТ */}
       {chatUser && (
         <div className="fixed inset-0 z-[300] bg-[#0b0e14] flex flex-col animate-in slide-in-from-right duration-300">
-           <header className="p-6 border-b border-white/5 flex items-center gap-4 bg-[#151a24]/50 backdrop-blur-2xl">
-              <button onClick={() => { setChatUser(null); setMessages([]); }} className="p-3 bg-white/5 rounded-2xl text-slate-400 active:scale-90 transition-all"><X size={20}/></button>
-              <div className="flex-1 text-left">
+           <header className="p-6 border-b border-white/5 flex items-center gap-4 bg-[#151a24]/50 backdrop-blur-2xl text-left">
+              <button onClick={() => { setChatUser(null); setMessages([]); }} className="p-3 bg-white/5 rounded-2xl text-slate-400 active:scale-90 transition-all shadow-sm"><X size={20}/></button>
+              <div className="flex-1">
                  <h3 className="text-sm font-black uppercase italic tracking-tight text-white">{chatUser.name}</h3>
                  <span className="text-[8px] text-emerald-500 font-bold uppercase tracking-widest">Безопасная сделка</span>
               </div>
@@ -668,7 +661,7 @@ const App = () => {
            <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
               {messages.length > 0 ? messages.map((m, i) => (
                 <div key={i} className={`flex ${m.senderId === user.uid ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2`}>
-                   <div className={`max-w-[80%] p-4 rounded-3xl text-[13px] leading-relaxed shadow-lg ${m.senderId === user.uid ? 'bg-purple-600 text-white rounded-tr-none' : 'bg-[#151a24] text-slate-300 rounded-tl-none border border-white/5'}`}>
+                   <div className={`max-w-[80%] p-4 rounded-3xl text-[13px] leading-relaxed shadow-lg text-left ${m.senderId === user.uid ? 'bg-purple-600 text-white rounded-tr-none' : 'bg-[#151a24] text-slate-300 rounded-tl-none border border-white/5'}`}>
                       {m.text}
                    </div>
                 </div>
@@ -682,14 +675,13 @@ const App = () => {
            
            <form onSubmit={async (e) => {
               e.preventDefault();
-              if (!newMessage.trim()) return;
-              const chatId = chatUser.combinedId || [user.uid, chatUser.id, chatUser.jobId].sort().join('_');
-              await addDoc(collection(db, "chats", chatId, "messages"), {
+              if (!newMessage.trim() || !chatUser?.chatId) return;
+              await addDoc(collection(db, "chats", chatUser.chatId, "messages"), {
                 text: newMessage, senderId: user.uid, senderName: userData.name, createdAt: serverTimestamp()
               });
               setNewMessage('');
            }} className="p-6 bg-[#151a24]/50 border-t border-white/5 backdrop-blur-2xl flex gap-3">
-              <input value={newMessage} onChange={e => setNewMessage(e.target.value)} placeholder="Введите сообщение..." className="flex-1 bg-[#0b0e14] border border-white/5 rounded-2xl px-6 py-4 text-sm outline-none focus:border-purple-600/30 transition-all shadow-inner" />
+              <input value={newMessage} onChange={e => setNewMessage(e.target.value)} placeholder="Введите сообщение..." className="flex-1 bg-[#0b0e14] border border-white/5 rounded-2xl px-6 py-4 text-sm outline-none focus:border-purple-600/30 transition-all shadow-inner text-white" />
               <button type="submit" className="p-4 bg-purple-600 rounded-2xl text-white shadow-xl shadow-purple-600/20 active:scale-90 transition-all"><Send size={20}/></button>
            </form>
         </div>
@@ -706,12 +698,12 @@ const App = () => {
                  if(!topUpAmount) return;
                  await updateDoc(doc(db, "users", user.uid), { balance: increment(Number(topUpAmount)) });
                  setShowTopUpModal(false); setTopUpAmount('');
-              }} className="w-full bg-purple-600 py-5 rounded-[24px] text-[10px] font-black uppercase text-white shadow-xl shadow-purple-600/20 active:scale-95">Пополнить</button>
+              }} className="w-full bg-purple-600 py-5 rounded-[24px] text-[10px] font-black uppercase text-white shadow-xl shadow-purple-600/20 active:scale-95 transition-all">Пополнить</button>
            </div>
         </div>
       )}
 
-      {/* Модалка закрытия заказа и отзыва */}
+      {/* Модалка закрытия заказа */}
       {reviewModal && (
         <div className="fixed inset-0 z-[250] flex items-center justify-center px-6">
            <div className="absolute inset-0 bg-[#0b0e14]/95 backdrop-blur-xl"></div>
@@ -725,8 +717,8 @@ const App = () => {
                   </button>
                 ))}
               </div>
-              <textarea placeholder="Опишите впечатления от работы..." value={reviewText} onChange={e => setReviewText(e.target.value)} className="w-full bg-[#0b0e14] border border-white/5 rounded-2xl p-5 text-sm outline-none h-32 resize-none text-left mb-6 focus:border-purple-600/30" />
-              <button disabled={isSubmitting} onClick={submitReview} className="w-full bg-emerald-600 py-5 rounded-[28px] text-[10px] font-black uppercase text-white shadow-xl shadow-emerald-600/20 flex items-center justify-center gap-2">
+              <textarea placeholder="Опишите впечатления от работы..." value={reviewText} onChange={e => setReviewText(e.target.value)} className="w-full bg-[#0b0e14] border border-white/5 rounded-2xl p-5 text-sm outline-none h-32 resize-none text-left mb-6 focus:border-purple-600/30 shadow-inner" />
+              <button disabled={isSubmitting} onClick={submitReview} className="w-full bg-emerald-600 py-5 rounded-[28px] text-[10px] font-black uppercase text-white shadow-xl shadow-emerald-600/20 flex items-center justify-center gap-2 active:scale-95 transition-all">
                  {isSubmitting && <Loader2 size={14} className="animate-spin"/>} Подтвердить и выплатить ₸
               </button>
            </div>
@@ -740,13 +732,13 @@ const App = () => {
            <div className="relative w-full max-w-xs bg-[#151a24] rounded-[40px] p-8 border border-white/10 shadow-2xl text-left animate-in zoom-in-95 duration-200">
               <h3 className="text-[10px] font-black uppercase text-white mb-6 tracking-widest italic flex items-center gap-2"><Plus size={14}/> Добавить кейс</h3>
               <div className="space-y-4">
-                 <input type="text" placeholder="Название проекта" value={newPortfolioItem.title} onChange={e => setNewPortfolioItem({...newPortfolioItem, title: e.target.value})} className="w-full bg-[#0b0e14] border border-white/5 rounded-2xl p-4 text-[11px] outline-none focus:border-purple-600/30" />
-                 <input type="text" placeholder="Ссылка (https://...)" value={newPortfolioItem.link} onChange={e => setNewPortfolioItem({...newPortfolioItem, link: e.target.value})} className="w-full bg-[#0b0e14] border border-white/5 rounded-2xl p-4 text-[11px] outline-none focus:border-purple-600/30" />
+                 <input type="text" placeholder="Название проекта" value={newPortfolioItem.title} onChange={e => setNewPortfolioItem({...newPortfolioItem, title: e.target.value})} className="w-full bg-[#0b0e14] border border-white/5 rounded-2xl p-4 text-[11px] outline-none focus:border-purple-600/30 shadow-inner" />
+                 <input type="text" placeholder="Ссылка (https://...)" value={newPortfolioItem.link} onChange={e => setNewPortfolioItem({...newPortfolioItem, link: e.target.value})} className="w-full bg-[#0b0e14] border border-white/5 rounded-2xl p-4 text-[11px] outline-none focus:border-purple-600/30 shadow-inner" />
                  <button onClick={async () => {
                     if(!newPortfolioItem.title) return;
                     await updateDoc(doc(db, "users", user.uid), { portfolio: arrayUnion({ ...newPortfolioItem, id: Date.now() }) });
                     setNewPortfolioItem({ title: '', link: '' }); setShowPortfolioModal(false);
-                 }} className="w-full bg-purple-600 py-4 rounded-2xl text-[10px] font-black uppercase text-white shadow-lg shadow-purple-600/20 mt-2">Добавить в портфолио</button>
+                 }} className="w-full bg-purple-600 py-4 rounded-2xl text-[10px] font-black uppercase text-white shadow-lg shadow-purple-600/20 mt-2 active:scale-95 transition-all">Добавить в портфолио</button>
               </div>
            </div>
         </div>
