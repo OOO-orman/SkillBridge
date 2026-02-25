@@ -1,19 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
 import { auth, db } from './firebaseConfig';
-import { LayoutGrid, Rocket, Trophy, User, Plus, Loader2, Trash2 } from 'lucide-react';
 import { signOut } from 'firebase/auth';
 import { 
   doc, updateDoc, collection, onSnapshot, addDoc, query, 
-  orderBy, where, serverTimestamp, limit, increment, getDoc, deleteDoc, arrayUnion, arrayRemove 
+  orderBy, where, serverTimestamp, limit, increment, getDoc, 
+  deleteDoc, arrayUnion, arrayRemove 
 } from 'firebase/firestore';
 import { 
-  LayoutGrid, Trophy, User, Rocket, Bell, Briefcase, X, Send, 
-  MessageCircle, Crown, Plus, Gavel, Users, ShieldAlert, Scale, 
-  ChevronRight, RotateCcw, ShieldCheck, Lock, CheckCircle2, Trash2, Undo2, AlertOctagon, Handshake,
-  Code, Palette, Megaphone, PenTool, Star, Award, Zap, Github, Edit3, Save, ExternalLink, Camera, 
-  BriefcaseBusiness, Circle, Link as LinkIcon, FolderKanban, TrendingUp, Search, Loader2, LogOut
+  LayoutGrid, Rocket, Trophy, User, Plus, Loader2, Trash2, 
+  Bell, Briefcase, X, Send, MessageCircle, Crown, Gavel, 
+  Users, ShieldAlert, Scale, ChevronRight, RotateCcw, ShieldCheck, 
+  Lock, CheckCircle2, Undo2, AlertOctagon, Handshake, Code, 
+  Palette, Megaphone, PenTool, Star, Award, Zap, Github, 
+  Edit3, Save, ExternalLink, Camera, BriefcaseBusiness, Circle, 
+  Link as LinkIcon, FolderKanban, TrendingUp, Search, LogOut 
 } from 'lucide-react';
+
 import AuthPage from './AuthPage';
 
 const App = () => {
@@ -144,6 +147,35 @@ const App = () => {
       setSelectedJob(null);
     } catch (e) { console.error(e); }
     setIsSubmitting(false);
+    const deleteJob = async (job) => {
+    if (job.status !== 'open') {
+      alert("Проект уже в работе. Удаление невозможно.");
+      return;
+    }
+
+    if (!window.confirm(`Вернуть ${job.budget} ₸ на ваш баланс и удалить проект?`)) return;
+
+    setIsSubmitting(true);
+    try {
+      // 1. Возвращаем деньги на баланс (используем ID пользователя и бюджет из объекта job)
+      const userRef = doc(db, "users", user.uid);
+      await updateDoc(userRef, {
+        balance: increment(job.budget)
+      });
+
+      // 2. Удаляем саму задачу
+      await deleteDoc(doc(db, "jobs", job.id));
+
+      // 3. Закрываем модальное окно
+      setSelectedJob(null);
+      alert("Проект успешно удален, деньги возвращены.");
+    } catch (err) {
+      console.error("Ошибка при удалении:", err);
+      alert("Не удалось удалить проект.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
   };
 
   const createJob = async (e) => {
@@ -635,17 +667,27 @@ const App = () => {
                      {isSubmitting ? <Loader2 className="animate-spin" size={18}/> : myApplications.includes(selectedJob.id) ? 'Отклик отправлен' : 'Взять проект в работу'}
                   </button>
                 )}
-
-                {/* 2. Кнопка для ВЛАДЕЛЕЦА (КОМПАНИИ) */}
-                {selectedJob.companyId === user.uid && (
-                  <button 
-                    onClick={() => deleteJob(selectedJob)}
-                    className="w-full py-6 bg-red-600/10 border border-red-500/20 rounded-[28px] text-[10px] font-black uppercase text-red-500 hover:bg-red-600 hover:text-white transition-all flex items-center justify-center gap-2 shadow-lg"
-                  >
-                    <Trash2 size={16}/> {selectedJob.status === 'open' ? 'Удалить и вернуть деньги' : 'В работе (удаление запрещено)'}
-                  </button>
-                )}
-
+{/* 2. Кнопка для ВЛАДЕЛЕЦА (КОМПАНИИ) */}
+{selectedJob.companyId === user.uid && (
+  <button 
+    disabled={isSubmitting}
+    onClick={() => deleteJob(selectedJob)}
+    className={`w-full py-6 rounded-[28px] text-[10px] font-black uppercase transition-all flex items-center justify-center gap-2 shadow-lg ${
+      isSubmitting 
+        ? 'bg-slate-800 text-slate-500 cursor-not-allowed' 
+        : 'bg-red-600/10 border border-red-500/20 text-red-500 hover:bg-red-600 hover:text-white'
+    }`}
+  >
+    {isSubmitting ? (
+      <Loader2 className="animate-spin" size={16}/>
+    ) : (
+      <>
+        <Trash2 size={16}/> 
+        {selectedJob.status === 'open' ? 'Удалить и вернуть деньги' : 'В работе (через арбитраж)'}
+      </>
+    )}
+  </button>
+)}
                 {/* 3. Для ЧУЖОЙ компании (не владельца) */}
                 {userData?.role === 'company' && selectedJob.companyId !== user.uid && (
                   <div className="w-full py-6 bg-white/5 border border-white/5 rounded-[28px] text-[10px] font-black uppercase text-slate-500 text-center italic tracking-widest">
