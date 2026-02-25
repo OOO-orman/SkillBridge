@@ -339,19 +339,11 @@ const App = () => {
                            <span className="text-[10px] font-black text-slate-600">{app.budget?.toLocaleString()} ₸</span>
                         </div>
                       </div>
-                      <button onClick={() => {
-  const otherId = userData.role === 'company' ? app.userId : app.companyId;
-  const otherName = userData.role === 'company' ? app.userName : app.companyName;
-  // Генерируем ID здесь
-  const cid = getChatId(user.uid, otherId, app.jobId);
-  
-  setChatUser({ 
-    id: otherId, 
-    name: otherName,
-    jobId: app.jobId,
-    chatId: cid 
-  });
-}} className="p-4 bg-white/5 rounded-2xl text-slate-400 hover:text-purple-400 active:scale-90 transition-all shadow-lg border border-white/5">
+                      <button onClick={() => setChatUser({
+                        id: userData.role === 'company' ? app.userId : app.companyId, 
+                        name: userData.role === 'company' ? app.userName : app.companyName, 
+                        jobId: app.jobId
+                      })} className="p-4 bg-white/5 rounded-2xl text-slate-400 hover:text-purple-400 active:scale-90 transition-all shadow-lg border border-white/5">
                         <MessageCircle size={20}/>
                       </button>
                    </div>
