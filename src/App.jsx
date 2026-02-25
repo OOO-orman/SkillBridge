@@ -20,6 +20,7 @@ import {
 import AuthPage from './AuthPage';
 
 const App = () => {
+  const [totalEarnings, setTotalEarnings] = useState(0); // Хранит общую сумму прибыли
   const { user, userData } = useAuth();
   
   // -- СОСТОЯНИЯ --
@@ -168,14 +169,24 @@ if (!data.ok) {
 
     let unsubDisputes;
     if (isAdmin) {
+      // 1. Слушатель споров (уже был)
       unsubDisputes = onSnapshot(query(collection(db, "applications"), where("status", "in", ["На проверке", "Спор", "dispute"])), (snap) => {
         setDisputes(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      });
+
+      // 2. ДОБАВЛЯЕМ: Слушатель прибыли платформы
+      unsubEarnings = onSnapshot(collection(db, "platform_earnings"), (snap) => {
+        const total = snap.docs.reduce((acc, doc) => acc + (doc.data().amount || 0), 0);
+        setTotalEarnings(total);
       });
     }
 
     return () => {
       unsubJobs(); unsubApps(); unsubNotifs(); unsubTop(); unsubReviews();
-      if(isAdmin) unsubDisputes?.();
+      if(isAdmin) {
+        unsubDisputes?.();
+        unsubEarnings?.(); // <-- Добавь эту строчку здесь
+      }
     };
   }, [user, userData, isAdmin]); // Добавлен userData в зависимости
 
